@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>心灵栖息地 - 纯净版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: "Zen Maru Gothic", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            transition: background-image 1s ease-in-out;
+        }
+
+        /* 场景容器切换动画 */
+        .stage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none; /* 默认不接受点击 */
+            transition: opacity 1s ease-in-out;
+            /* 移除 Flex 居中，改用绝对定位布局内部元素，防止布局挤压 */
+            z-index: 10;
+        }
+
+        /* 激活状态：高层级 + 可点击 */
+        .stage.active {
+            opacity: 1;
+            pointer-events: auto; 
+            z-index: 40; 
+        }
+
+        /* 欢迎页保留一个较低的基础层级 */
+        #stage-welcome {
+            z-index: 20; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        #stage-welcome.active {
+            z-index: 40;
+        }
+
+        /* 浮动按钮样式 */
+        .nav-btn {
+            position: absolute;
+            bottom: 40px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: inherit;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            z-index: 50;
+        }
+        .nav-btn:hover { background: rgba(255, 255, 255, 0.25); transform: scale(1.1); }
+        .nav-btn:active { transform: scale(0.95); }
+        .nav-btn.prev { left: 30px; }
+        .nav-btn.next { right: 30px; }
+        .nav-btn.hidden { opacity: 0; pointer-events: none; }
+
+        /* 音量开关 */
+        .volume-toggle {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            padding: 10px;
+            opacity: 0.6;
+            cursor: pointer;
+            z-index: 50;
+            transition: opacity 0.3s;
+        }
+        .volume-toggle:hover { opacity: 1; }
+
+        /* 背景装饰球 */
+        .bg-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 1;
+            animation: float 10s infinite ease-in-out;
+        }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(20px, -20px); }
+        }
+        
+        /* 自定义打字机光标 */
+        .cursor::after {
+            content: '|';
+            animation: blink 1s infinite;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* 输入框Placeholder */
+        ::placeholder { color: rgba(255, 255, 255, 0.6); }
+
+        /* 治愈语录浮现 */
+        .affirmation-toast {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 12px 24px;
+            border-radius: 99px;
+            color: #881337; /* rose-900 */
+            font-size: 0.95rem;
+            opacity: 0;
+            transition: opacity 1s ease-in-out, transform 1s ease-out;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.1);
+            white-space: nowrap;
+            z-index: 45;
+        }
+        .affirmation-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-20px);
+        }
+
+        /* 3. 萤火虫样式 */
+        .firefly {
+            position: absolute;
+            border-radius: 50%;
+            /* 荧光绿/黄 */
+            background-color: #bef264; 
+            box-shadow: 0 0 4px #bef264, 0 0 10px #bef264;
+            pointer-events: none;
+            opacity: 0;
+            mix-blend-mode: screen;
+        }
+        /* 萤火虫闪烁动画 */
+        @keyframes flicker {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-slate-50 text-slate-600 transition-colors duration-1000">
+
+    <!-- 背景音乐 -->
+    <audio id="bg-music" src="musics.mp3" loop></audio>
+
+    <!-- 动态背景层 -->
+    <div id="bg-layer" class="fixed inset-0 pointer-events-none z-0 bg-gradient-to-br from-blue-100 to-purple-100 transition-all duration-1000">
+        <div class="absolute inset-0 opacity-10" style="background-image: url('https://www.transparenttextures.com/patterns/cubes.png');"></div>
+        <div id="blob1" class="bg-blob w-96 h-96 bg-white/30 top-[-10%] left-[-10%]"></div>
+        <div id="blob2" class="bg-blob w-[800px] h-[800px] bg-white/20 top-[20%] left-[20%]"></div>
+    </div>
+
+    <!-- 极简控制区 -->
+    <div id="controls-ui" class="hidden">
+        <div class="volume-toggle" id="mute-btn">
+            <svg id="icon-vol-on" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+            <svg id="icon-vol-off" class="hidden" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+        </div>
+
+        <div class="nav-btn prev" id="btn-prev">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </div>
+        <div class="nav-btn next" id="btn-next">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </div>
+    </div>
+
+    <!-- 1. 欢迎页 -->
+    <div id="stage-welcome" class="stage active">
+        <div class="text-center px-8">
+            <h1 id="welcome-title" class="text-4xl md:text-5xl font-light text-slate-700 mb-8 tracking-widest leading-tight min-h-[120px]">
+                <!-- 打字机效果将插入这里 -->
+            </h1>
+            <button id="start-btn" class="opacity-0 translate-y-4 transition-all duration-1000 px-8 py-3 bg-white/40 backdrop-blur-md rounded-full text-slate-700 shadow-lg hover:shadow-xl hover:bg-white/60 border border-white/50 flex items-center gap-3 mx-auto group">
+                <svg class="w-5 h-5 fill-slate-600 group-hover:scale-110 transition-transform" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span class="tracking-widest">开始旅程</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. 绽放页 -->
+    <div id="stage-bloom" class="stage cursor-pointer">
+         <div class="absolute top-[20%] left-0 w-full pointer-events-none z-20 text-center select-none">
+            <h2 class="text-2xl text-pink-800/60 font-light mb-4 tracking-widest">心田花开</h2>
+            <p class="text-pink-400/50 text-sm">点击播种，静待绽放</p>
+        </div>
+        <canvas id="bloom-canvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+    </div>
+
+    <!-- 3. 心灵森语 (恢复萤火虫) -->
+    <div id="stage-forest" class="stage cursor-pointer overflow-hidden flex flex-col items-center justify-center">
+        <div class="pointer-events-none z-10 text-center select-none text-emerald-50/90 drop-shadow-md">
+            <h2 class="text-2xl font-light mb-4 tracking-widest">心灵森语</h2>
+            <p class="text-sm opacity-80 font-light">触碰微光，感受生命律动</p>
+        </div>
+        <!-- 萤火虫容器 -->
+        <div id="forest-container" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+    </div>
+
+    <!-- 4. 释放页 (纸飞机) -->
+    <div id="stage-release" class="stage flex flex-col">
+        <div id="plane-container" class="absolute inset-0 pointer-events-none overflow-hidden z-0"></div>
+        
+        <!-- 治愈语录展示区 -->
+        <div id="affirmation-box" class="affirmation-toast"></div>
+
+        <div class="z-10 w-full max-w-md text-center px-6 mt-auto mb-32 mx-auto">
+            <h2 class="text-2xl text-rose-800/60 font-light mb-2 tracking-widest">将烦恼折成纸飞机</h2>
+            <p class="text-rose-400/60 text-sm mb-8 font-light">用力扔出去，再也不回头</p>
+            
+            <div class="relative group">
+                <input type="text" id="release-input" placeholder="写下此刻的沉重..." class="w-full bg-white/40 backdrop-blur-md border border-white/50 rounded-full py-4 px-6 text-slate-600 focus:outline-none focus:ring-2 focus:ring-rose-200 transition-all shadow-sm">
+                <button id="release-btn" class="absolute right-2 top-2 p-2 rounded-full bg-rose-400 text-white hover:bg-rose-500 transition-all disabled:opacity-50 disabled:bg-rose-200">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. 曼陀罗页  -->
+    <div id="stage-mandala" class="stage cursor-pointer">
+        <!-- 文字层 -->
+        <div class="absolute top-[15%] left-0 w-full z-20 text-center pointer-events-none px-6 select-none">
+            <h2 class="text-2xl text-violet-100/90 font-light tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">心之曼陀罗</h2>
+            <p class="mt-4 text-violet-200/60 text-sm font-light">指尖轻舞，绘出平衡与秩序</p>
+        </div>
+
+        <!-- Canvas 绘图层 -->
+        <canvas id="mandala-canvas" class="absolute inset-0 w-full h-full z-10"></canvas>
+    </div>
+
+    <script>
+        // --- 数据与常量 ---
+        const affirmations = [
+          "你不需要每时每刻都做到完美。",
+          "慢下来，世界会等你。",
+          "你的感受是真实的，也是重要的。",
+          "每一次呼吸都是一次新的开始。",
+          "像爱别人一样爱你自己。",
+          "今天做的已经够好了。",
+          "允许自己休息，这本身就是一种力量。",
+          "光一直都在，你也一样。",
+          "拥抱不确定性，那里藏着惊喜。"
+        ];
+
+        // 场景数组更新：forest(萤火虫), mandala(曼陀罗)
+        const stages = ['welcome', 'bloom', 'forest', 'release', 'mandala'];
+        const colors = {
+            welcome: "from-blue-100 to-purple-100",
+            bloom: "from-pink-50 via-white to-emerald-50", 
+            // 森林页：深邃的墨绿
+            forest: "from-emerald-900 via-teal-900 to-emerald-950",
+            release: "from-rose-50 to-orange-50",
+            // 曼陀罗页：神秘的深紫/夜色
+            mandala: "from-slate-900 via-violet-950 to-slate-900" 
+        };
+
+        const state = {
+            currentStage: 0,
+            isMuted: false,
+            audioContext: null,
+            whiteNoiseBuffer: null
+        };
+
+        // --- 核心逻辑 ---
+        
+        function init() {
+            typeWriterEffect();
+            setupEventListeners();
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        function switchStage(index) {
+            if (index < 0 || index >= stages.length) return;
+            
+            document.getElementById(`stage-${stages[state.currentStage]}`).classList.remove('active');
+            
+            state.currentStage = index;
+            const stageName = stages[index];
+            
+            document.getElementById(`stage-${stageName}`).classList.add('active');
+            
+            const bgLayer = document.getElementById('bg-layer');
+            bgLayer.className = `fixed inset-0 pointer-events-none z-0 bg-gradient-to-br transition-all duration-1000 ${colors[stageName]}`;
+
+            // 深色背景处理
+            const isDark = stageName === 'mandala' || stageName === 'forest';
+            document.body.className = isDark ? "text-slate-300 transition-colors duration-1000" : "text-slate-600 transition-colors duration-1000";
+            
+            const prevBtn = document.getElementById('btn-prev');
+            const nextBtn = document.getElementById('btn-next');
+            const controls = document.getElementById('controls-ui');
+            
+            if (stageName === 'welcome') {
+                controls.classList.add('hidden');
+            } else {
+                controls.classList.remove('hidden');
+                prevBtn.classList.toggle('hidden', index === 1); 
+                prevBtn.classList.toggle('hidden', false);
+                nextBtn.classList.toggle('hidden', index === stages.length - 1);
+                
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.style.borderColor = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)";
+                    btn.style.color = isDark ? "#e2e8f0" : "#475569";
+                });
+                document.getElementById('mute-btn').style.color = isDark ? "#e2e8f0" : "#475569";
+            }
+
+            resizeCanvas();
+
+            if (stageName === 'bloom') startBloomLoop();
+            else stopBloomLoop();
+            
+            if (stageName === 'mandala') startMandalaLoop();
+            else stopMandalaLoop();
+        }
+
+        // 欢迎页打字机
+        function typeWriterEffect() {
+            const titleEl = document.getElementById('welcome-title');
+            const text1 = "停下来，";
+            const text2 = "找回自己";
+            let i = 0;
+            
+            titleEl.innerHTML = '<span class="cursor"></span>';
+            
+            function type() {
+                if (i < text1.length) {
+                    titleEl.innerHTML = text1.substring(0, i + 1) + '<span class="cursor"></span>' + '<br/>';
+                    i++;
+                    setTimeout(type, 150);
+                } else if (i < text1.length + text2.length) {
+                    const offset = i - text1.length;
+                    titleEl.innerHTML = text1 + '<br/>' + text2.substring(0, offset + 1) + '<span class="cursor"></span>';
+                    i++;
+                    setTimeout(type, 150);
+                } else {
+                    document.querySelector('.cursor').style.display = 'none';
+                    const btn = document.getElementById('start-btn');
+                    btn.classList.remove('opacity-0', 'translate-y-4');
+                }
+            }
+            setTimeout(type, 500);
+        }
+
+        function initAudio() {
+            if (!state.audioContext) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                state.audioContext = new AudioContext();
+            }
+            if (state.audioContext.state === 'suspended') {
+                state.audioContext.resume();
+            }
+            
+            if (!state.whiteNoiseBuffer) {
+                const bufferSize = state.audioContext.sampleRate * 2; 
+                const buffer = state.audioContext.createBuffer(1, bufferSize, state.audioContext.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                state.whiteNoiseBuffer = buffer;
+            }
+
+            const bgMusic = document.getElementById('bg-music');
+            bgMusic.volume = 0.4;
+            bgMusic.play().catch(e => console.log("Autoplay blocked"));
+        }
+
+        function playBloomSound() {
+             if (!state.audioContext) initAudio();
+            const ctx = state.audioContext;
+            const t = ctx.currentTime;
+            
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400 + Math.random() * 400, t);
+            
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.05, t + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(t);
+            osc.stop(t + 1.0);
+        }
+
+        // 曼陀罗音效
+        function playMandalaTone() {
+            if (!state.audioContext) initAudio();
+            const ctx = state.audioContext;
+            const t = ctx.currentTime;
+            
+            // 使用多个振荡器产生水晶般的声音
+            const freqs = [330, 440, 554, 659]; // E major add9 ish
+            const freq = freqs[Math.floor(Math.random() * freqs.length)] * (Math.random() > 0.5 ? 1 : 2);
+
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, t);
+            
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.02, t + 0.1); // 非常轻柔
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 1.5);
+            
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            osc.start(t);
+            osc.stop(t + 1.5);
+        }
+
+        function playPlaneSound() {
+            if (!state.audioContext) initAudio();
+            const ctx = state.audioContext;
+            const t = ctx.currentTime;
+            
+            if (!state.whiteNoiseBuffer) return;
+
+            const source = ctx.createBufferSource();
+            source.buffer = state.whiteNoiseBuffer;
+            
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.Q.value = 1;
+            filter.frequency.setValueAtTime(200, t);
+            filter.frequency.linearRampToValueAtTime(800, t + 0.2); 
+            filter.frequency.linearRampToValueAtTime(100, t + 1.0); 
+
+            const gain = ctx.createGain();
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(0.15, t + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+            
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(ctx.destination);
+            
+            source.start(t);
+            source.stop(t + 1.5);
+        }
+
+        // --- Bloom (花开) 逻辑 ---
+        let flowers = [];
+        let bloomReqId;
+        const bloomColors = [
+            'rgba(255, 183, 178, ', 
+            'rgba(255, 209, 220, ', 
+            'rgba(226, 240, 203, ', 
+            'rgba(255, 253, 208, ', 
+            'rgba(199, 206, 234, '  
+        ];
+
+        function createFlower(x, y) {
+            const petalCount = 5 + Math.floor(Math.random() * 5);
+            const colorBase = bloomColors[Math.floor(Math.random() * bloomColors.length)];
+            return {
+                x, y,
+                maxSize: 30 + Math.random() * 40,
+                currentSize: 0,
+                rotation: Math.random() * Math.PI * 2,
+                rotationSpeed: (Math.random() - 0.5) * 0.02,
+                colorBase: colorBase,
+                petalCount: petalCount,
+                growthSpeed: 0.5 + Math.random() * 0.5,
+                age: 0
+            };
+        }
+        
+        function resizeCanvas() {
+            const bloomCanvas = document.getElementById('bloom-canvas');
+            const mandalaCanvas = document.getElementById('mandala-canvas');
+            const dpr = window.devicePixelRatio || 1;
+            
+            [bloomCanvas, mandalaCanvas].forEach(canvas => {
+                if (canvas) {
+                    canvas.width = window.innerWidth * dpr;
+                    canvas.height = window.innerHeight * dpr;
+                    canvas.style.width = window.innerWidth + 'px';
+                    canvas.style.height = window.innerHeight + 'px';
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(dpr, dpr);
+                }
+            });
+        }
+
+        function startBloomLoop() {
+            const canvas = document.getElementById('bloom-canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            function loop() {
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+                
+                flowers.forEach(f => {
+                    if (f.currentSize < f.maxSize) {
+                        f.currentSize += f.growthSpeed;
+                    }
+                    f.rotation += f.rotationSpeed;
+                    f.age += 1;
+
+                    ctx.save();
+                    ctx.translate(f.x, f.y);
+                    ctx.rotate(f.rotation);
+
+                    const alpha = Math.min(1, f.currentSize / 10); 
+                    ctx.fillStyle = f.colorBase + alpha + ')';
+                    
+                    for (let i = 0; i < f.petalCount; i++) {
+                        ctx.rotate((Math.PI * 2) / f.petalCount);
+                        ctx.beginPath();
+                        ctx.ellipse(0, f.currentSize/2, f.currentSize/4, f.currentSize/2, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.arc(0, 0, f.currentSize/5, 0, Math.PI*2);
+                    ctx.fillStyle = 'rgba(255, 255, 240, 0.8)';
+                    ctx.fill();
+
+                    ctx.restore();
+                });
+
+                bloomReqId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function stopBloomLoop() {
+            if (bloomReqId) {
+                cancelAnimationFrame(bloomReqId);
+                bloomReqId = null;
+            }
+        }
+        
+        // --- Forest (萤火虫) 逻辑 ---
+        function createFirefly(x, y) {
+            const container = document.getElementById('forest-container');
+            const firefly = document.createElement('div');
+            firefly.className = 'firefly';
+            
+            // 随机大小
+            const size = 3 + Math.random() * 5;
+            firefly.style.width = size + 'px';
+            firefly.style.height = size + 'px';
+            firefly.style.left = x + 'px';
+            firefly.style.top = y + 'px';
+            
+            // 随机动画延迟
+            firefly.style.animation = `flicker ${2 + Math.random()}s infinite alternate`;
+            
+            container.appendChild(firefly);
+
+            // 飘动轨迹
+            const duration = 4000 + Math.random() * 3000;
+            const driftX = (Math.random() - 0.5) * 100;
+            const driftY = -Math.random() * 150; // 慢慢向上飞
+
+            const anim = firefly.animate([
+                { opacity: 0, transform: 'translate(0, 0) scale(0.5)' },
+                { opacity: 1, transform: `translate(${driftX * 0.2}px, ${driftY * 0.2}px) scale(1)`, offset: 0.2 },
+                { opacity: 0.5, transform: `translate(${driftX * 0.6}px, ${driftY * 0.6}px) scale(0.8)`, offset: 0.7 },
+                { opacity: 0, transform: `translate(${driftX}px, ${driftY}px) scale(0.5)` }
+            ], {
+                duration: duration,
+                easing: 'ease-out',
+                fill: 'forwards'
+            });
+
+            anim.onfinish = () => firefly.remove();
+        }
+
+
+        // --- Mandala (曼陀罗) 逻辑 ---
+        let mandalaPoints = [];
+        let mandalaReqId;
+        let mandalaHue = 0;
+
+        function startMandalaLoop() {
+            const canvas = document.getElementById('mandala-canvas');
+            const ctx = canvas.getContext('2d');
+            if(!ctx) return;
+            
+            // 初始清空
+            // ctx.clearRect(0,0,canvas.width,canvas.height);
+
+            function loop() {
+                // 制造拖尾效果：不完全清空，而是覆盖一层半透明背景
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.05)'; // 对应 slate-900 背景
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+
+                mandalaHue = (mandalaHue + 0.5) % 360;
+                
+                // 处理当前正在画的点
+                if (mandalaPoints.length > 0) {
+                     const centerX = canvas.width / (2 * (window.devicePixelRatio || 1));
+                     const centerY = canvas.height / (2 * (window.devicePixelRatio || 1));
+                     const symmetry = 6; 
+
+                     ctx.save();
+                     // 这里由于之前resize里scale了，所以坐标可以直接用
+                     
+                     ctx.lineWidth = 2;
+                     ctx.lineCap = 'round';
+                     ctx.strokeStyle = `hsl(${mandalaHue}, 70%, 70%)`;
+                     ctx.shadowBlur = 10;
+                     ctx.shadowColor = `hsl(${mandalaHue}, 70%, 50%)`;
+
+                     // 取最后两个点画线
+                     const p2 = mandalaPoints[mandalaPoints.length - 1];
+                     const p1 = mandalaPoints.length > 1 ? mandalaPoints[mandalaPoints.length - 2] : p2;
+                     
+                     if (p1 && p2) {
+                        for (let i = 0; i < symmetry; i++) {
+                            ctx.save();
+                            ctx.translate(centerX, centerY);
+                            ctx.rotate((Math.PI * 2 * i) / symmetry);
+                            
+                            // 原始位置相对于中心
+                            const x1 = p1.x - centerX;
+                            const y1 = p1.y - centerY;
+                            const x2 = p2.x - centerX;
+                            const y2 = p2.y - centerY;
+
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+
+                            // 镜像
+                            ctx.scale(1, -1);
+                            ctx.beginPath();
+                            ctx.moveTo(x1, y1);
+                            ctx.lineTo(x2, y2);
+                            ctx.stroke();
+                            
+                            ctx.restore();
+                        }
+                     }
+                     ctx.restore();
+                }
+                
+                mandalaReqId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function stopMandalaLoop() {
+            if(mandalaReqId) {
+                cancelAnimationFrame(mandalaReqId);
+                mandalaReqId = null;
+            }
+        }
+
+
+        // --- 事件监听 ---
+        function setupEventListeners() {
+            document.getElementById('start-btn').addEventListener('click', () => {
+                initAudio();
+                switchStage(1);
+            });
+
+            document.getElementById('btn-prev').addEventListener('click', () => {
+                switchStage(state.currentStage - 1);
+            });
+            document.getElementById('btn-next').addEventListener('click', () => {
+                switchStage(state.currentStage + 1);
+            });
+
+            document.getElementById('mute-btn').addEventListener('click', () => {
+                const bgMusic = document.getElementById('bg-music');
+                state.isMuted = !state.isMuted;
+                bgMusic.muted = state.isMuted;
+                
+                const onIcon = document.getElementById('icon-vol-on');
+                const offIcon = document.getElementById('icon-vol-off');
+                if (state.isMuted) {
+                    onIcon.classList.add('hidden');
+                    offIcon.classList.remove('hidden');
+                } else {
+                    onIcon.classList.remove('hidden');
+                    offIcon.classList.add('hidden');
+                }
+            });
+
+            document.getElementById('stage-bloom').addEventListener('click', (e) => {
+                 const rect = e.currentTarget.getBoundingClientRect();
+                 const x = e.clientX - rect.left;
+                 const y = e.clientY - rect.top;
+                 
+                 flowers.push(createFlower(x, y));
+                 playBloomSound();
+            });
+
+            document.getElementById('stage-forest').addEventListener('click', (e) => {
+                // 点击一次生成几只萤火虫，增加丰富度
+                for(let i=0; i<3; i++) {
+                    const offsetX = (Math.random() - 0.5) * 50;
+                    const offsetY = (Math.random() - 0.5) * 50;
+                    createFirefly(e.clientX + offsetX, e.clientY + offsetY);
+                }
+            });
+
+            // 曼陀罗交互
+            const mandalaStage = document.getElementById('stage-mandala');
+            let isDrawing = false;
+            
+            function handleDrawStart(e) {
+                isDrawing = true;
+                mandalaPoints = [];
+                // 偶尔播放声音
+                if(Math.random() > 0.7) playMandalaTone();
+            }
+            function handleDrawEnd() {
+                isDrawing = false;
+                mandalaPoints = [];
+            }
+            function handleDrawMove(e) {
+                if (!isDrawing) return;
+                let clientX, clientY;
+                if (e.touches && e.touches.length > 0) {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                } else {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                }
+                
+                const rect = mandalaStage.getBoundingClientRect();
+                mandalaPoints.push({
+                    x: clientX - rect.left,
+                    y: clientY - rect.top
+                });
+
+                // 限制点数防止内存泄露，其实只用了最后两个点，但保持数组可以做更复杂的效果
+                if(mandalaPoints.length > 10) mandalaPoints.shift();
+            }
+
+            mandalaStage.addEventListener('mousedown', handleDrawStart);
+            mandalaStage.addEventListener('touchstart', handleDrawStart);
+            
+            window.addEventListener('mouseup', handleDrawEnd);
+            window.addEventListener('touchend', handleDrawEnd);
+            
+            mandalaStage.addEventListener('mousemove', handleDrawMove);
+            mandalaStage.addEventListener('touchmove', handleDrawMove);
+
+            // 移动端也要防止滚动
+            mandalaStage.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+
+            const sendPlane = () => {
+                const input = document.getElementById('release-input');
+                const val = input.value.trim();
+                if (!val) return;
+                
+                playPlaneSound(); 
+
+                input.value = '';
+                
+                const container = document.getElementById('plane-container');
+                const plane = document.createElement('div');
+                plane.className = 'absolute flex items-center gap-2 text-rose-500/80';
+                
+                const width = window.innerWidth;
+                const dir = Math.random() > 0.5 ? 1 : -1;
+                const xEnd = (Math.random() * 0.3 + 0.2) * width * dir; 
+                const rotationEnd = (Math.random() * 20 + 10) * dir; 
+
+                plane.innerHTML = `
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="fill-rose-200"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    <span class="text-sm font-light bg-white/50 backdrop-blur-sm px-2 py-1 rounded-md transition-opacity duration-1000">${val}</span>
+                `;
+                
+                container.appendChild(plane);
+
+                const animation = plane.animate([
+                    { 
+                        transform: 'translate(-50%, 0) scale(0.5) rotate(0deg)',
+                        opacity: 0,
+                        bottom: '15%',
+                        left: '50%'
+                    },
+                    {
+                        opacity: 1,
+                        offset: 0.1 
+                    },
+                    {
+                        transform: `translate(calc(-50% + ${xEnd * 0.4}px), 0) scale(0.6) rotate(${rotationEnd * 0.3}deg)`,
+                        bottom: '50%', 
+                        left: '50%',
+                        offset: 0.4
+                    },
+                    {
+                        transform: `translate(calc(-50% + ${xEnd}px), 0) scale(0.2) rotate(${rotationEnd}deg)`,
+                        opacity: 0, 
+                        bottom: '90%', 
+                        left: '50%'
+                    }
+                ], {
+                    duration: 2500 + Math.random() * 1000, 
+                    easing: 'cubic-bezier(0.25, 1, 0.5, 1)', 
+                    fill: 'forwards'
+                });
+
+                animation.onfinish = () => plane.remove();
+
+                const toast = document.getElementById('affirmation-box');
+                const randomMsg = affirmations[Math.floor(Math.random() * affirmations.length)];
+                toast.innerText = randomMsg;
+                toast.classList.add('show');
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            };
+
+            document.getElementById('release-btn').addEventListener('click', sendPlane);
+            document.getElementById('release-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') sendPlane();
+            });
+            document.getElementById('release-input').addEventListener('input', (e) => {
+                const btn = document.getElementById('release-btn');
+                if (e.target.value.trim()) {
+                    btn.disabled = false;
+                    btn.classList.remove('bg-rose-200');
+                    btn.classList.add('bg-rose-400');
+                } else {
+                    btn.disabled = true;
+                    btn.classList.add('bg-rose-200');
+                    btn.classList.remove('bg-rose-400');
+                }
+            });
+        }
+
+        init();
+
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
